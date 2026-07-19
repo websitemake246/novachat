@@ -242,7 +242,7 @@ el.innerHTML=f.map(u=>{const i=(u.displayName||u.username)[0].toUpperCase(),on=o
 
 function sTab(t){curTab=t;document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.textContent.includes(t==='users'?'Chats':'Groups')));renderU();document.getElementById('search').value=''}
 
-function openC(id,un,dn,av){cc={id,username:un,displayName:dn||un,avatar:av,type:'private'};showChat(dn||un,av);if(socket)socket.emit('chat:join',id);loadM(id);renderU();if(window.innerWidth<=768)document.getElementById('sidebar').classList.remove('open')}
+function openC(id,un,dn,av){var cid=[me.id,id].sort().join(':');cc={id:cid,username:un,displayName:dn||un,avatar:av,type:'private'};showChat(dn||un,av);if(socket)socket.emit('chat:join',cid);loadM(cid);renderU();if(window.innerWidth<=768)document.getElementById('sidebar').classList.remove('open')}
 function showChat(n,av){document.getElementById('empty').style.display='none';document.getElementById('msgs').style.display='flex';document.getElementById('chatTop').style.display='flex';document.getElementById('inputArea').style.display='flex';document.getElementById('chName').innerHTML=esc(n);document.getElementById('chAv').innerHTML=av?'<img src="'+av+'">':n[0].toUpperCase();document.getElementById('callBtn').style.display='inline-flex';uStatus()}
 function uStatus(){if(!cc)return;document.getElementById('chStatus').textContent=online.has(cc.id)?'🟢 Online':'○ Offline'}
 async function loadM(chatId){try{const r=await fetch('/api/messages/'+chatId,{headers:{'Authorization':'Bearer '+token}});const ms=await r.json();const el=document.getElementById('msgs');el.innerHTML=ms.map(m=>rM(m)).join('');el.scrollTop=el.scrollHeight}catch(e){}}
