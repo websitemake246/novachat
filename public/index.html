@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NovaChat</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+:root {
+  --primary: #7c5cfc;
+  --primary-hover: #6a4de6;
+  --primary-glow: rgba(124,92,252,0.3);
+  --bg: #0a0a12;
+  --bg-secondary: #12121e;
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.08);
+  --text: #e8e8f0;
+  --text-secondary: #8880a0;
+  --text-muted: #55556a;
+  --border: rgba(255,255,255,0.06);
+  --danger: #ff4d6a;
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 20px;
+}
+[data-theme="light"] {
+  --bg: #f0f0f5;
+  --bg-secondary: #fff;
+  --surface: rgba(0,0,0,0.03);
+  --surface-hover: rgba(0,0,0,0.06);
+  --text: #1a1a2e;
+  --text-secondary: #55556a;
+  --text-muted: #999;
+  --border: rgba(0,0,0,0.08);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  height: 100vh; overflow: hidden;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+
+/* Auth */
+.auth-wrap {
+  display:flex; align-items:center; justify-content:center;
+  height:100vh; padding:20px;
+  background: radial-gradient(ellipse at top left, rgba(124,92,252,0.12), transparent 60%),
+              radial-gradient(ellipse at bottom right, rgba(46,204,113,0.06), transparent 60%);
+}
+.auth-card {
+  width:100%; max-width:400px;
+  background: var(--bg-secondary); border:1px solid var(--border);
+  border-radius: var(--radius-lg); padding:36px 28px;
+}
+.auth-card h1 { font-size:26px; font-weight:800; text-align:center; margin-bottom:4px; }
+.auth-card h1 span { background: linear-gradient(135deg, #7c5cfc, #2ecc71); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.auth-card .sub { text-align:center; color:var(--text-secondary); font-size:13px; margin-bottom:20px; }
+.auth-error { color:var(--danger); font-size:13px; margin-bottom:12px; display:none; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.5px; }
+.form-group input, .form-group select, .form-group textarea {
+  width:100%; padding:10px 14px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--surface);
+  color:var(--text); font-size:14px; font-family:inherit; outline:none;
+  transition:all 0.2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+.form-group textarea { min-height:80px; resize:vertical; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:11px 22px; border-radius:var(--radius-sm); border:none;
+  font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
+  transition:all 0.15s; width:100%;
+}
+.btn-primary { background: linear-gradient(135deg, #7c5cfc, #6a4de6); color:#fff; }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px var(--primary-glow); }
+.btn-secondary { background: var(--surface); color: var(--text-secondary); border:1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); color: var(--text); }
+.btn-danger { background: #e74c3c22; color: var(--danger); border:1px solid #e74c3c44; }
+.btn-danger:hover { background: #e74c3c33; }
+.btn-sm { padding:7px 14px; font-size:12px; width:auto; }
+.btn-icon { width:34px; height:34px; border-radius:50%; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+.link { color:var(--primary); cursor:pointer; font-weight:600; }
+.link:hover { text-decoration:underline; }
+.switch-text { text-align:center; font-size:13px; color:var(--text-secondary); margin-top:14px; }
+
+/* App Layout */
+.app { display:none; height:100vh; }
+.sidebar {
+  position:fixed; left:0; top:0; bottom:0; width:300px;
+  background:var(--bg-secondary); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; z-index:100;
+  transition:left 0.3s;
+}
+.sidebar-header {
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sidebar-header h2 { font-size:17px; font-weight:700; }
+.sidebar-header h2 span { color:var(--primary); }
+.sidebar-header .actions { display:flex; gap:4px; }
+.sidebar-header .actions button {
+  width:32px; height:32px; border-radius:50%; border:none;
+  background:var(--surface); color:var(--text-secondary); cursor:pointer;
+  font-size:14px; transition:all 0.15s;
+}
+.sidebar-header .actions button:hover { background:var(--surface-hover); color:var(--text); }
+
+.search-box { padding:10px 14px; position:relative; }
+.search-box input {
+  width:100%; padding:8px 14px 8px 36px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--surface);
+  color:var(--text); font-size:13px; outline:none; transition:all 0.2s;
+}
+.search-box input:focus { border-color:var(--primary); }
+.search-box i { position:absolute; left:26px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px; }
+
+.chat-list { flex:1; overflow-y:auto; }
+.chat-item {
+  display:flex; align-items:center; gap:10px; padding:10px 16px;
+  cursor:pointer; transition:all 0.12s; border-left:3px solid transparent;
+}
+.chat-item:hover { background:var(--surface-hover); }
+.chat-item.active { background:var(--surface); border-left-color:var(--primary); }
+.chat-avatar {
+  width:40px; height:40px; border-radius:50%; flex-shrink:0;
+  background: linear-gradient(135deg, var(--primary), #2ecc71);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:#fff; font-weight:700; position:relative; overflow:hidden;
+}
+.chat-avatar img { width:100%; height:100%; object-fit:cover; }
+.online-dot {
+  position:absolute; bottom:0; right:0; width:10px; height:10px;
+  border-radius:50%; border:2px solid var(--bg-secondary);
+  background:var(--success); display:none;
+}
+.online-dot.show { display:block; }
+.chat-info { flex:1; min-width:0; }
+.chat-name { font-size:14px; font-weight:600; }
+.chat-name .badge-icon { font-size:11px; margin-left:3px; }
+.chat-last { font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+
+/* Main */
+.main { margin-left:300px; height:100vh; display:flex; flex-direction:column; }
+.chat-top {
+  padding:10px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px;
+  background:var(--glass-bg, var(--bg-secondary));
+}
+.chat-top .ch-avatar {
+  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+  background: linear-gradient(135deg, var(--primary), #2ecc71);
+  display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; overflow:hidden;
+}
+.chat-top .ch-avatar img { width:100%; height:100%; object-fit:cover; }
+.chat-top .ch-info { flex:1; min-width:0; }
+.chat-top .ch-name { font-size:15px; font-weight:600; }
+.chat-top .ch-name .badge-icon { font-size:12px; margin-left:3px; }
+.chat-top .ch-status { font-size:11px; color:var(--text-secondary); }
+.chat-top .top-actions { display:flex; gap:4px; }
+.chat-top .top-actions button {
+  width:32px; height:32px; border-radius:50%; border:none;
+  background:var(--surface); color:var(--text-secondary); cursor:pointer;
+  font-size:13px; transition:all 0.15s;
+}
+.chat-top .top-actions button:hover { background:var(--surface-hover); color:var(--text); }
+
+.messages {
+  flex:1; overflow-y:auto; padding:14px 18px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.msg {
+  max-width:78%; padding:8px 14px; border-radius:var(--radius);
+  font-size:14px; line-height:1.5; animation:msgIn 0.15s ease;
+}
+@keyframes msgIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.msg.sent { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+.msg.recv { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; }
+.msg .sender { font-size:11px; font-weight:600; color:var(--primary); margin-bottom:1px; }
+.msg .txt { word-break:break-word; }
+.msg .txt img, .msg .txt video { max-width:220px; border-radius:8px; display:block; margin:4px 0; }
+.msg .time { font-size:10px; opacity:0.55; margin-top:2px; text-align:right; }
+.msg .reactions { display:flex; gap:2px; flex-wrap:wrap; margin-top:3px; }
+.msg .reactions span { background:var(--surface-hover); padding:1px 5px; border-radius:8px; font-size:12px; cursor:pointer; }
+.msg .reactions span:hover { background:var(--primary); }
+.msg .reply-box {
+  font-size:11px; padding:5px 8px; border-radius:6px;
+  background:rgba(255,255,255,0.08); margin-bottom:3px; border-left:2px solid var(--primary);
+}
+.msg .reply-box .rn { font-weight:600; }
+.msg .reply-box .rt { opacity:0.7; }
+.edited { font-size:10px; opacity:0.45; font-style:italic; }
+
+.typing-indicator { font-size:11px; color:var(--text-muted); padding:2px 18px 6px; font-style:italic; }
+
+.input-area {
+  padding:10px 14px; border-top:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+}
+.input-area input {
+  flex:1; padding:9px 14px; border-radius:20px;
+  border:1px solid var(--border); background:var(--surface);
+  color:var(--text); font-size:14px; outline:none; transition:all 0.2s;
+}
+.input-area input:focus { border-color:var(--primary); }
+.input-area button.send {
+  width:38px; height:38px; border-radius:50%; border:none;
+  background: linear-gradient(135deg, var(--primary), #6a4de6);
+  color:#fff; cursor:pointer; font-size:15px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  transition:all 0.15s;
+}
+.input-area button.send:hover { transform:scale(1.05); box-shadow:0 4px 14px var(--primary-glow); }
+.input-area button.attach {
+  background:transparent; border:none; color:var(--text-muted);
+  font-size:18px; cursor:pointer; padding:6px; transition:all 0.15s;
+}
+.input-area button.attach:hover { color:var(--text); }
+
+.empty-state {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:10px; color:var(--text-muted);
+}
+.empty-state i { font-size:56px; opacity:0.25; }
+.empty-state h3 { font-size:18px; color:var(--text-secondary); }
+.empty-state p { font-size:13px; }
+
+/* Modals */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.55);
+  backdrop-filter:blur(4px); display:none; align-items:center;
+  justify-content:center; z-index:2000; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--bg-secondary); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:24px; max-width:480px;
+  width:100%; max-height:80vh; overflow-y:auto;
+}
+.modal h2 { font-size:18px; margin-bottom:14px; }
+.modal .close { float:right; background:none; border:none; color:var(--text-muted); font-size:22px; cursor:pointer; }
+.modal .close:hover { color:var(--text); }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:20px; right:20px; z-index:3000;
+  background:var(--bg-secondary); border:1px solid var(--border);
+  border-radius:var(--radius); padding:12px 18px; font-size:13px;
+  display:none; animation:slideUp 0.3s; box-shadow:0 8px 24px rgba(0,0,0,0.3);
+}
+@keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* Badges */
+.badge-blue { color:#3498db; }
+.badge-gold { color:#f1c40f; }
+.badge-diamond { color:#b0f0ff; text-shadow:0 0 8px rgba(176,240,255,0.4); }
+.premium-badge { color:#f1c40f; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar { left:-300px; }
+  .sidebar.open { left:0; width:100%; }
+  .main { margin-left:0; }
+}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div class="auth-wrap" id="authWrap">
+  <div class="auth-card" id="loginCard">
+    <h1>Nova<span>Chat</span></h1>
+    <p class="sub">Sign in to continue</p>
+    <div class="auth-error" id="loginErr"></div>
+    <form id="loginForm">
+      <div class="form-group"><label>Username</label><input type="text" id="loginUser" required placeholder="your username"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="loginPass" required placeholder="••••••••"></div>
+      <button class="btn btn-primary" type="submit">Sign In</button>
+    </form>
+    <p class="switch-text">No account? <span class="link" onclick="showReg()">Create one</span></p>
+  </div>
+  <div class="auth-card" id="regCard" style="display:none;">
+    <h1>Nova<span>Chat</span></h1>
+    <p class="sub">Create your account</p>
+    <div class="auth-error" id="regErr"></div>
+    <form id="regForm">
+      <div class="form-group"><label>Username</label><input type="text" id="regUser" required minlength="3" maxlength="20"></div>
+      <div class="form-group"><label>Email (optional)</label><input type="email" id="regEmail"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="regPass" required minlength="6"></div>
+      <button class="btn btn-primary" type="submit">Create Account</button>
+    </form>
+    <p class="switch-text">Already have one? <span class="link" onclick="showLogin()">Sign in</span></p>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>Nova<span>Chat</span></h2>
+      <div class="actions">
+        <button onclick="toggleTheme()" title="Theme"><i class="fas fa-moon"></i></button>
+        <button onclick="openAdmin()" id="adminBtn" style="display:none;" title="Admin"><i class="fas fa-shield-halved"></i></button>
+        <button onclick="logout()" title="Logout"><i class="fas fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="Search users..." oninput="searchUsers(this.value)" onkeydown="if(event.key==='Enter') searchGo()">
+    </div>
+    <div class="chat-list" id="chatList"></div>
+  </div>
+
+  <div class="main">
+    <div class="chat-top" id="chatTop" style="display:none;">
+      <button class="btn btn-secondary btn-icon hamburger" onclick="toggleSidebar()" style="display:none;"><i class="fas fa-bars"></i></button>
+      <div class="ch-avatar" id="chAvatar">N</div>
+      <div class="ch-info">
+        <div class="ch-name" id="chName">User</div>
+        <div class="ch-status" id="chStatus">offline</div>
+      </div>
+      <div class="top-actions">
+        <button onclick="openProfile()" title="Profile"><i class="fas fa-user"></i></button>
+        <button onclick="showSearchMsg()" title="Search messages"><i class="fas fa-search"></i></button>
+      </div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <i class="fas fa-comments"></i>
+      <h3>Welcome to NovaChat</h3>
+      <p>Search for a user to start chatting</p>
+    </div>
+
+    <div class="messages" id="messagesArea" style="display:none;"></div>
+    <div class="typing-indicator" id="typingIndicator"></div>
+
+    <div class="input-area" id="inputArea" style="display:none;">
+      <button class="attach" onclick="document.getElementById('fileInput').click()"><i class="fas fa-paperclip"></i></button>
+      <input type="text" id="msgInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMsg()">
+      <button class="send" onclick="sendMsg()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" style="display:none" multiple onchange="uploadFile(this)">
+
+<!-- Profile Modal -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal"><button class="close" onclick="closeMod('profileModal')">✕</button>
+    <h2>My Profile</h2>
+    <div class="form-group"><label>Display Name</label><input type="text" id="profName" placeholder="Display name"></div>
+    <div class="form-group"><label>Bio</label><input type="text" id="profBio" placeholder="Your bio..."></div>
+    <div class="form-group"><label>Custom Status</label><input type="text" id="profStatus" placeholder="e.g. Busy, Available..."></div>
+    <div class="form-group"><label>Avatar</label><input type="file" id="profAvatar" accept="image/*" onchange="upAvatar(this)"></div>
+    <button class="btn btn-primary" onclick="saveProfile()">Save</button>
+    <hr style="margin:16px 0;border-color:var(--border);">
+    <p style="font-size:13px;color:var(--text-secondary)">Verified: <span id="profVer">No</span></p>
+    <p style="font-size:13px;color:var(--text-secondary)">Premium: <span id="profPrem">No</span></p>
+    <button class="btn btn-secondary btn-sm" onclick="showBuyPrem()" style="margin-top:10px;width:auto;">💎 Get Premium</button>
+  </div>
+</div>
+
+<!-- Premium Modal -->
+<div class="modal-overlay" id="premModal">
+  <div class="modal"><button class="close" onclick="closeMod('premModal')">✕</button>
+    <h2>💎 Premium</h2>
+    <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">Get verified, premium badge, and exclusive features.</p>
+    <div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="font-size:24px;font-weight:800;color:var(--primary);">₦500</div>
+      <div style="font-size:13px;color:var(--text-secondary);">One-time payment · 30 days premium</div>
+    </div>
+    <button class="btn btn-primary" onclick="buyPremium()">💳 Pay with Paystack</button>
+    <p style="font-size:12px;color:var(--text-muted);margin-top:12px;">Test card: 4242 4242 4242 4242</p>
+  </div>
+</div>
+
+<!-- Admin Modal -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal"><button class="close" onclick="closeMod('adminModal')">✕</button>
+    <h2>🔐 Admin Panel</h2>
+    <div id="adminStats" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="background:var(--surface);padding:10px;border-radius:8px;flex:1;text-align:center;"><div style="font-size:18px;font-weight:700;color:var(--primary)" id="aUsers">0</div><div style="font-size:11px;color:var(--text-muted)">Users</div></div>
+      <div style="background:var(--surface);padding:10px;border-radius:8px;flex:1;text-align:center;"><div style="font-size:18px;font-weight:700;color:var(--success)" id="aMsgs">0</div><div style="font-size:11px;color:var(--text-muted)">Messages</div></div>
+      <div style="background:var(--surface);padding:10px;border-radius:8px;flex:1;text-align:center;"><div style="font-size:18px;font-weight:700;color:var(--warning)" id="aPrem">0</div><div style="font-size:11px;color:var(--text-muted)">Premium</div></div>
+    </div>
+    <div class="form-group"><label>Search User</label><input type="text" id="adminSearch" placeholder="Username..." oninput="adminFind()"></div>
+    <div id="adminList"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== STATE ======
+let token = localStorage.getItem('nc_token');
+let me = null;
+let socket = null;
+let currentChat = null;
+let onlineSet = new Set();
+let allUsers = [];
+
+// ====== AUTH ======
+if (token) {
+  try {
+    const p = JSON.parse(atob(token.split('.')[1]));
+    me = p;
+    if (Date.now() > p.exp * 1000) { localStorage.removeItem('nc_token'); token = null; me = null; }
+  } catch(e) { localStorage.removeItem('nc_token'); token = null; }
+}
+
+function showReg() { document.getElementById('loginCard').style.display='none'; document.getElementById('regCard').style.display='block'; }
+function showLogin() { document.getElementById('regCard').style.display='none'; document.getElementById('loginCard').style.display='block'; }
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+  const d = await r.json();
+  if (!r.ok) { aErr('loginErr', d.error); return; }
+  boot(d);
+});
+
+document.getElementById('regForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = document.getElementById('regUser').value.trim().toLowerCase();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value;
+  if (username.length < 3) { aErr('regErr', 'Username 3+ chars'); return; }
+  if (password.length < 6) { aErr('regErr', 'Password 6+ chars'); return; }
+  const r = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,email,password}) });
+  const d = await r.json();
+  if (!r.ok) { aErr('regErr', d.error); return; }
+  boot(d);
+});
+
+function aErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function boot(d) {
+  token = d.token;
+  me = d.user;
+  localStorage.setItem('nc_token', token);
+  document.getElementById('authWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  if (me.role === 'admin' || me.role === 'superadmin') document.getElementById('adminBtn').style.display = 'inline-flex';
+  connect();
+  loadUsers();
+}
+
+function logout() {
+  fetch('/api/logout', { headers:{'Authorization':'Bearer '+token} });
+  if (socket) socket.disconnect();
+  localStorage.removeItem('nc_token');
+  location.reload();
+}
+
+// ====== SOCKET ======
+function connect() {
+  socket = io({ auth: { token } });
+  socket.on('connect', () => {});
+  socket.on('message:new', m => {
+    if (currentChat && m.chatId === currentChat.id) { appendMsg(m); markRead(m.chatId); }
+    loadUsers();
+  });
+  socket.on('typing:update', d => {
+    if (currentChat && d.chatId === currentChat.id)
+      document.getElementById('typingIndicator').textContent = d.typing ? `${d.user} typing...` : '';
+  });
+  socket.on('voice:update', d => {
+    if (currentChat && d.chatId === currentChat.id)
+      document.getElementById('typingIndicator').textContent = d.recording ? `${d.user} recording voice...` : '';
+  });
+  socket.on('message:reacted', d => {
+    document.querySelectorAll(`.msg[data-id="${d.msgId}"] .reactions`).forEach(el => el.innerHTML = renderReacts(d.reactions));
+  });
+  socket.on('message:edited', d => {
+    document.querySelectorAll(`.msg[data-id="${d.msgId}"] .txt`).forEach(el => { el.innerHTML = esc(d.content) + ' <span class="edited">(edited)</span>'; });
+  });
+  socket.on('message:deleted', d => {
+    if (d.forEveryone) document.querySelectorAll(`.msg[data-id="${d.msgId}"]`).forEach(el => el.remove());
+    else document.querySelectorAll(`.msg[data-id="${d.msgId}"] .txt`).forEach(el => el.textContent = 'This message was deleted');
+  });
+  socket.on('message:starred', d => { /* visual handled via star */ });
+  socket.on('user:online', d => { onlineSet.add(d.id); updateStatus(); loadUsers(); });
+  socket.on('user:offline', d => { onlineSet.delete(d.id); updateStatus(); loadUsers(); });
+  socket.on('announcement', d => { toast(`📢 ${d.text}`); });
+  if (currentChat) socket.emit('chat:join', currentChat.id);
+}
+
+// ====== USERS ======
+async function loadUsers() {
+  try {
+    const r = await fetch('/api/users', { headers:{'Authorization':'Bearer '+token} });
+    allUsers = await r.json();
+    renderChats();
+  } catch(e) {}
+}
+
+function renderChats(list) {
+  const data = list || allUsers;
+  const el = document.getElementById('chatList');
+  if (!data.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">No users found</div>'; return; }
+  el.innerHTML = data.map(u => {
+    const init = (u.displayName||u.username)[0].toUpperCase();
+    const on = onlineSet.has(u.id);
+    const act = currentChat && currentChat.id === u.id;
+    return `<div class="chat-item ${act?'active':''}" onclick="openChat('${u.id}','${u.username}','${u.displayName||''}','${u.avatar||''}')">
+      <div class="chat-avatar">${u.avatar ? '<img src="'+u.avatar+'">' : init}<div class="online-dot ${on?'show':''}"></div></div>
+      <div class="chat-info"><div class="chat-name">${esc(u.displayName||u.username)}${u.verified ? ' <span class="badge-icon badge-'+ (u.verifiedBadge||'blue') +'"><i class="fas fa-check-circle"></i></span>' : ''}${u.premium ? ' <span class="premium-badge"><i class="fas fa-crown"></i></span>' : ''}</div><div class="chat-last">${on ? 'Online' : 'Offline'}</div></div>
+    </div>`;
+  }).join('');
+}
+
+async function searchUsers(q) {
+  if (!q || q.length < 2) { renderChats(); return; }
+  try {
+    const r = await fetch('/api/users/search/'+encodeURIComponent(q), { headers:{'Authorization':'Bearer '+token} });
+    const users = await r.json();
+    renderChats(users);
+  } catch(e) {}
+}
+
+function searchGo() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!q) return;
+  const found = allUsers.find(u => u.username === q || (u.displayName||'').toLowerCase() === q);
+  if (found) openChat(found.id, found.username, found.displayName, found.avatar);
+}
+
+// ====== CHAT ======
+function openChat(id, username, displayName, avatar) {
+  currentChat = { id, username, displayName: displayName||username, avatar };
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('messagesArea').style.display = 'flex';
+  document.getElementById('chatTop').style.display = 'flex';
+  document.getElementById('inputArea').style.display = 'flex';
+  document.getElementById('chName').innerHTML = esc(displayName||username);
+  document.getElementById('chAvatar').innerHTML = avatar ? '<img src="'+avatar+'">' : (displayName||username)[0].toUpperCase();
+  if (socket) socket.emit('chat:join', id);
+  loadMsgs(id);
+  renderChats();
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+  updateStatus();
+}
+
+function updateStatus() {
+  if (!currentChat) return;
+  document.getElementById('chStatus').textContent = onlineSet.has(currentChat.id) ? '🟢 Online' : '○ Offline';
+}
+
+async function loadMsgs(chatId) {
+  try {
+    const r = await fetch('/api/messages/'+chatId, { headers:{'Authorization':'Bearer '+token} });
+    const msgs = await r.json();
+    const el = document.getElementById('messagesArea');
+    el.innerHTML = msgs.map(m => renderMsg(m)).join('');
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {}
+}
+
+function renderMsg(m) {
+  const mine = m.senderId === me.id;
+  const time = new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  let c = m.content;
+  if (m.type === 'image') c = `<img src="${c}" onclick="window.open(this.src)" loading="lazy">`;
+  else if (m.type === 'video') c = `<video src="${c}" controls style="max-width:220px;border-radius:8px;"></video>`;
+  else if (m.type === 'audio') c = `<audio src="${c}" controls style="max-width:220px;"></audio>`;
+  else c = esc(c);
+  if (m.deleted) c = '<em>This message was deleted</em>';
+
+  let reply = '';
+  if (m.replyTo) reply = `<div class="reply-box"><div class="rn">${esc(m.replyTo.senderName||'')}</div><div class="rt">${esc((m.replyTo.content||'').substring(0,70))}</div></div>`;
+
+  return `<div class="msg ${mine?'sent':'recv'}" data-id="${m.id}">
+    ${!mine ? '<div class="sender">'+esc(m.senderDisplayName||m.senderUsername)+'</div>' : ''}
+    ${reply}
+    <div class="txt">${c}${m.edited?' <span class="edited">(edited)</span>':''}</div>
+    <div class="reactions">${renderReacts(m.reactions||[])}</div>
+    <div class="time">${time}${mine ? ' <i class="fas fa-check'+(m.readBy&&m.readBy.length>1?'-double':'')+'" style="font-size:9px;"></i>' : ''}</div>
+  </div>`;
+}
+
+function renderReacts(reacts) {
+  if (!reacts||!reacts.length) return '';
+  const cnt = {};
+  reacts.forEach(r => { cnt[r.emoji] = (cnt[r.emoji]||0)+1; });
+  let h = '';
+  for (const [e, c] of Object.entries(cnt)) h += `<span onclick="reactToMsg('${e}')">${e} ${c}</span>`;
+  return h;
+}
+
+function appendMsg(m) {
+  const el = document.getElementById('messagesArea');
+  el.insertAdjacentHTML('beforeend', renderMsg(m));
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendMsg() {
+  const input = document.getElementById('msgInput');
+  const txt = input.value.trim();
+  if (!txt || !currentChat || !socket) return;
+  socket.emit('message:send', { chatId: currentChat.id, chatType: 'private', content: txt, type: 'text' });
+  input.value = '';
+}
+
+function markRead(chatId) {
+  if (socket) socket.emit('chat:join', chatId);
+}
+
+// ====== FILE UPLOAD ======
+function uploadFile(input) {
+  const f = input.files[0];
+  if (!f || !currentChat) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  fetch('/api/upload', { method:'POST', headers:{'Authorization':'Bearer '+token}, body:fd })
+    .then(r => r.json())
+    .then(d => {
+      const type = f.type.startsWith('image/') ? 'image' : f.type.startsWith('video/') ? 'video' : f.type.startsWith('audio/') ? 'audio' : 'file';
+      socket.emit('message:send', { chatId: currentChat.id, chatType: 'private', content: d.url, type });
+      input.value = '';
+    }).catch(() => toast('Upload failed'));
+}
+
+function upAvatar(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append('avatar', f);
+  fetch('/api/profile', { method:'PUT', headers:{'Authorization':'Bearer '+token}, body:fd })
+    .then(r => r.json()).then(d => { if (d.success) toast('Avatar updated!'); }).catch(() => {});
+}
+
+// ====== UI ======
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function toggleTheme() {
+  const h = document.documentElement;
+  h.setAttribute('data-theme', h.getAttribute('data-theme')==='dark'?'light':'dark');
+}
+
+function openProfile() {
+  document.getElementById('profileModal').classList.add('open');
+  document.getElementById('profName').value = me.displayName || '';
+  document.getElementById('profBio').value = me.bio || '';
+  document.getElementById('profStatus').value = me.customStatus || '';
+  document.getElementById('profVer').textContent = me.verified ? '✅' : '❌';
+  document.getElementById('profPrem').textContent = me.premium ? '✅' : '❌';
+}
+
+async function saveProfile() {
+  const displayName = document.getElementById('profName').value.trim();
+  const bio = document.getElementById('profBio').value.trim();
+  const customStatus = document.getElementById('profStatus').value.trim();
+  try {
+    const r = await fetch('/api/profile', { method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body:JSON.stringify({displayName,bio,customStatus}) });
+    const d = await r.json();
+    if (d.success) { me = d.user; toast('Profile saved!'); closeMod('profileModal'); }
+  } catch(e) { toast('Error'); }
+}
+
+function showBuyPrem() { closeMod('profileModal'); document.getElementById('premModal').classList.add('open'); }
+
+async function buyPremium() {
+  try {
+    const r = await fetch('/api/premium/initiate', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token} });
+    const d = await r.json();
+    if (d.success) {
+      toast('Payment initiated! ID: '+d.paymentId);
+      // Simulate confirm (in production, Paystack callback does this)
+      const c = await fetch('/api/premium/confirm', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body:JSON.stringify({paymentId:d.paymentId}) });
+      const cd = await c.json();
+      if (cd.success) { toast('🎉 Premium activated!'); me.premium = true; closeMod('premModal'); }
+    }
+  } catch(e) { toast('Error'); }
+}
+
+function showSearchMsg() { toast('Message search coming soon'); }
+function reactToMsg(emoji) { /* placeholder */ }
+
+function closeMod(id) { document.getElementById(id).classList.remove('open'); }
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// ====== ADMIN ======
+async function openAdmin() {
+  const mod = document.getElementById('adminModal');
+  if (mod.classList.contains('open')) { closeMod('adminModal'); return; }
+  mod.classList.add('open');
+  try {
+    const r = await fetch('/admin/stats', { headers:{'Authorization':'Bearer '+token} });
+    const d = await r.json();
+    document.getElementById('aUsers').textContent = d.totalUsers||0;
+    document.getElementById('aMsgs').textContent = d.totalMessages||0;
+    document.getElementById('aPrem').textContent = d.premium||0;
+  } catch(e) {}
+  adminFind();
+}
+
+async function adminFind() {
+  const q = document.getElementById('adminSearch').value.trim().toLowerCase();
+  try {
+    const r = await fetch('/admin/users', { headers:{'Authorization':'Bearer '+token} });
+    const users = await r.json();
+    const filtered = q ? users.filter(u => u.username.includes(q)||(u.displayName||'').toLowerCase().includes(q)) : users.slice(0,30);
+    document.getElementById('adminList').innerHTML = filtered.map(u => `
+      <div style="background:var(--surface);border-radius:8px;padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:100px;"><strong style="font-size:13px;">${esc(u.username)}</strong> ${u.verified?'✅':''} ${u.premium?'💎':''}<br><span style="font-size:11px;color:var(--text-muted);">${u.role} ${u.banned?'🚫':''}</span></div>
+        <button class="btn btn-secondary btn-sm" onclick="adminToggleVer('${u.id}')">${u.verified?'Unverify':'Verify'}</button>
+        <button class="btn btn-secondary btn-sm" onclick="adminTogglePrem('${u.id}')">${u.premium?'Remove Prem':'Give Prem'}</button>
+        ${!u.banned ? `<button class="btn btn-danger btn-sm" onclick="adminBan('${u.id}')">Ban</button>` : `<button class="btn btn-secondary btn-sm" onclick="adminUnban('${u.id}')">Unban</button>`}
+        ${u.role !== 'superadmin' ? `<button class="btn btn-danger btn-sm" onclick="adminDel('${u.id}')">Delete</button>` : ''}
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+async function adminToggleVer(id) {
+  const r = await fetch('/admin/user/'+id, { method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({ verified: true, verifiedBadge: 'blue' }) });
+  const d = await r.json();
+  if (d.success) { toast('Updated'); adminFind(); }
+}
+
+async function adminTogglePrem(id) {
+  // Find current state
+  const r2 = await fetch('/admin/users', { headers:{'Authorization':'Bearer '+token} });
+  const users = await r2.json();
+  const u = users.find(x => x.id === id);
+  const r = await fetch('/admin/user/'+id, { method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({ premium: !u?.premium }) });
+  const d = await r.json();
+  if (d.success) { toast('Updated'); adminFind(); }
+}
+
+async function adminBan(id) {
+  const r = await fetch('/admin/user/'+id, { method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({ banned: true, reason: 'Violated terms' }) });
+  const d = await r.json();
+  if (d.success) { toast('Banned'); adminFind(); }
+}
+
+async function adminUnban(id) {
+  const r = await fetch('/admin/user/'+id, { method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({ banned: false }) });
+  const d = await r.json();
+  if (d.success) { toast('Unbanned'); adminFind(); }
+}
+
+async function adminDel(id) {
+  if (!confirm('Delete this user?')) return;
+  const r = await fetch('/admin/user/'+id, { method:'DELETE', headers:{'Authorization':'Bearer '+token} });
+  const d = await r.json();
+  if (d.success) { toast('Deleted'); adminFind(); }
+}
+
+// ====== INIT ======
+if (token && me) {
+  document.getElementById('authWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sidebar').style.display = '';
+  if (me.role === 'admin' || me.role === 'superadmin') document.getElementById('adminBtn').style.display = 'inline-flex';
+  connect();
+  loadUsers();
+  // Responsive hamburger
+  if (window.innerWidth <= 768) document.querySelector('.hamburger').style.display = 'inline-flex';
+}
+</script>
+</body>
+</html>
